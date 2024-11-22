@@ -1,0 +1,136 @@
+module datapath(clk,in,sr,Rn,w,aluop,lt,tsel,bsel,out);
+	input clk, w, lt;
+	input [7:0] in;
+	input [1:0] sr, Rn, aluop;
+	input [2:0] bsel, tsel;
+	output wire [7:0] out;
+    wire [7:0] R0, R1, R2, R3, tmp, Bin, rin, alu_out, outFromMuxBtmp;
+    wire loadR0, loadR1, loadR2, loadR3;
+
+    assign out = R0;
+
+    loader l0(Rn, w, loadR0, loadR1, loadR2, loadR3);
+    //in load clk out
+    Reg r0(rin, loadR0, clk, R0);
+    Reg r1(rin, loadR1, clk, R1);
+    Reg r2(rin, loadR2, clk, R2);
+    Reg r3(rin, loadR3, clk, R3);
+    Reg tmpReg(outFromMuxBtmp, lt, clk, tmp);
+
+    MUX3aOneHot #(8) muxBtmp(Bin, R1, R2, R3, bsel);
+    MUX3aOneHot #(8) muxTtmp(outFromMuxBtmp, alu_out, R0, Bin, tsel);
+    MUX3a #(8) muxT(rin, in, alu_out, tmp, sr);
+
+    ALU alu(tmp, Bin, aluop, alu_out);
+  
+endmodule : datapath
+
+module loader(Rn, w, loadR0, loadR1, loadR2, loadR3);
+    input [1:0] Rn;
+    input w;
+    output loadR0, loadR1, loadR2, loadR3;
+    assign loadR0 = (Rn == 2'b00) & w;
+    assign loadR1 = (Rn == 2'b01) & w;
+    assign loadR2 = (Rn == 2'b10) & w;
+    assign loadR3 = (Rn == 2'b11) & w;
+endmodule : loader
+
+`define XOR 2'b00
+`define AND 2'b01
+`define SHIFT 2'b10
+`define IT 2'b11
+
+module ALU(Ain, Bin, ALUop, out);
+    input [7:0] Ain, Bin;
+    input [1:0] ALUop;
+    output reg [7:0] out;
+    always_comb begin 
+        case(ALUop) 
+            `XOR: begin 
+                out = Ain ^ Bin; 
+            end
+            `AND: begin 
+                out = Ain & Bin; 
+            end
+            `SHIFT: begin 
+                out = Ain << 1; 
+            end
+            `IT: begin 
+                out = Bin;
+            end
+            default: out = {8{1'bx}};
+        endcase
+    end
+endmodule : ALU
+
+module Reg(in, load, clk, out);
+  parameter k = 8;
+  input [k-1:0] in;
+  output wire [k-1:0] out;
+  input clk, load;
+  wire [k-1:0] outOfMux; 
+  vDFF #(k) dff0(.in(outOfMux), .clk(clk), .out(out));
+  MUX2a #(k) mux0(.out(outOfMux), .input0(out), .input1(in), .select(load));
+endmodule : Reg
+
+module MUX2a(out, input0, input1, select);
+  parameter k = 1;
+  input [k-1:0] input0, input1;
+  output reg [k-1:0] out;
+  input select; 
+  always_comb begin
+    case(select)
+      0: out = input0;
+      1: out = input1;
+      default: out = {k{1'bx}};
+    endcase
+  end
+endmodule : MUX2a
+
+module vDFF(in, clk, out);
+  parameter k = 1;
+  input [k-1:0] in;
+  output reg [k-1:0] out;
+  input clk;
+  always_ff @(posedge clk) begin 
+    out <= in;
+  end
+endmodule : vDFF
+
+module dec(in, out);
+    parameter n = 2; 
+    parameter m = 4; 
+    input [n-1:0] in; 
+    output [m-1:0] out; 
+    assign out = 1 << in;
+endmodule : dec
+
+module MUX3aOneHot(out, in0, in1, in2, select);
+  parameter k = 1;
+  input [k-1:0] in0, in1, in2;
+  output reg [k-1:0] out;
+  input [2:0] select; 
+  always_comb begin
+    case(select)
+      3'b001: out = in0;
+      3'b010: out = in1;
+      3'b100: out = in2;
+      default: out = {k{1'bx}};
+    endcase
+  end
+endmodule : MUX3aOneHot
+
+module MUX3a(out, in0, in1, in2, select);
+  parameter k = 1;
+  input [k-1:0] in0, in1, in2;
+  output reg [k-1:0] out;
+  input [1:0] select; 
+  always_comb begin
+    case(select)
+      0: out = in0;
+      1: out = in1;
+      2: out = in2;
+      default: out = {k{1'bx}};
+    endcase
+  end
+endmodule : MUX3a
