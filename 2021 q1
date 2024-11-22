@@ -1,8 +1,77 @@
+module datapath(
+    input clk,
+    input w, lt,
+    input [7:0] in,
+    input [1:0] sr, Rn, aluop,
+    input [2:0] bsel, tsel,
+    output reg [7:0] out
+);
 
-module datapath(clk,in,sr,Rn,w,aluop,lt,tsel,bsel,out);
- input clk, w, lt;
- input [7:0] in;
- input [1:0] sr, Rn, aluop;
- input [2:0] bsel, tsel;
- output [7:0] out;
- endmodule
+    reg [7:0] R0, R1, R2, R3;
+    reg [7:0] tmp;
+
+    reg [7:0] rin;
+    reg [7:0] alu_out;
+
+    reg [7:0] Bin;
+    reg [7:0] tsel_out;
+
+
+    assign out = R0;
+
+    always_comb begin
+        case (sr)
+        2'b00: rin <= in;
+        2'b01: rin <= alu_out;
+        2'b10: rin <= tmp;
+        default: rin <= 8'bxxxx_xxxx;
+        endcase
+    end
+
+    always_ff @(posedge clk) begin
+        if (w) begin
+            case (Rn) 
+            2'b00: R0 <= rin;
+            2'b01: R1 <= rin;
+            2'b10: R2 <= rin;
+            2'b11: R3 <= rin;
+            default: R0 <= rin; // might be bug, check later
+            endcase
+        end
+    end
+
+    always_comb begin
+        case(bsel)
+        3'b001: Bin <= R1;
+        3'b010: Bin <= R2;
+        3'b100: Bin <= R3;
+        default: Bin <= 8'bxxxx_xxxx;
+        endcase
+    end
+
+    always_comb begin
+        case(tsel)
+        3'b001: tsel_out <= alu_out;
+        3'b010: tsel_out <= R0;
+        3'b100: tsel_out <= Bin;
+        default: tsel_out <= 8'bxxxx_xxxx;
+        endcase
+    end
+
+    always_ff @(posedge clk)begin
+        if (lt) tmp <= tsel_out;
+    end
+
+    always_comb begin
+        case (aluop)
+
+        2'b00: alu_out <= tmp ^ Bin;
+        2'b01: alu_out <= tmp & Bin;
+        2'b10: alu_out <= tmp << 1;
+        2'b11: alu_out <= Bin;
+        default: alu_out <= 8'bxxxx_xxxx;
+        endcase
+    end
+
+
+endmodule
